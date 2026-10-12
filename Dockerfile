@@ -1,6 +1,10 @@
 # ---------- Build stage ----------
-# go.mod in this repo requires go >= 1.25.7, so a modern toolchain is required.
-FROM golang:1.27-alpine AS builder
+# go.mod in this repo requires go >= 1.25. GOTOOLCHAIN=auto makes Go
+# automatically download the exact toolchain version go.mod asks for
+# (e.g. 1.25.7) if the image's bundled Go is older.
+FROM golang:1.25-alpine AS builder
+
+ENV GOTOOLCHAIN=auto
 
 RUN apk add --no-cache git make gcc musl-dev
 
@@ -30,6 +34,8 @@ RUN mkdir -p /app/phishlets /app/sessions /app/certs && \
     chown -R evilginx:evilginx /app
 
 # Entrypoint starts as root (fixes volume ownership), then drops to 'evilginx'
-EXPOSE 53/udp 53/tcp 80/tcp 443/tcp
+# 53/80/443 = the phishing engine (DNS, HTTP, HTTPS)
+# 5000      = the web dashboard
+EXPOSE 53/udp 53/tcp 80/tcp 443/tcp 5000/tcp
 
 ENTRYPOINT ["/entrypoint.sh"]
