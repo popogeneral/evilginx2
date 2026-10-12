@@ -70,6 +70,7 @@ func (w *WebAPI) initAuth() {
 		log.Important("  Web Admin default credentials:")
 		log.Important("  Username: admin")
 		log.Important("  Password: %s", pass)
+		log.Important("  (you will be asked to change it after login)")
 		log.Important("==============================================")
 	}
 }
@@ -231,12 +232,20 @@ func (w *WebAPI) handleLogin(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// recordFailedAttempt increments the rate-limit counter for this IP
+	// recordFailedAttempt increments the rate-limit counter for this IP.
+	// FIX: if the stored counter's window has already expired, reset both
+	// the count and the window first — previously a stale entry could keep
+	// counting failed attempts against a dead timestamp.
 	recordFailedAttempt := func() {
-		v, _ := loginRateLimiter.LoadOrStore(clientIP, loginAttempt{count: 0, resetAt: now.Add(loginWindowSecs * time.Second)})
+		attemptTime := time.Now()
+		v, _ := loginRateLimiter.LoadOrStore(clientIP, loginAttempt{count: 0, resetAt: attemptTime.Add(loginWindowSecs * time.Second)})
 		attempt, ok := v.(loginAttempt)
 		if !ok {
-			attempt = loginAttempt{count: 0, resetAt: now.Add(loginWindowSecs * time.Second)}
+			attempt = loginAttempt{count: 0, resetAt: attemptTime.Add(loginWindowSecs * time.Second)}
+		}
+		if attemptTime.After(attempt.resetAt) {
+			attempt.count = 0
+			attempt.resetAt = attemptTime.Add(loginWindowSecs * time.Second)
 		}
 		attempt.count++
 		loginRateLimiter.Store(clientIP, attempt)
