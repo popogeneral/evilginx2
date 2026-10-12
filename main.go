@@ -5,13 +5,12 @@ import (
 	"fmt"
 	_log "log"
 	"os"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"os/signal"
 	"syscall"
-	
 
 	"github.com/caddyserver/certmagic"
 	"github.com/fatih/color"
@@ -19,7 +18,6 @@ import (
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
 	"go.uber.org/zap"
-	
 )
 
 var phishlets_dir = flag.String("p", "", "Phishlets directory path")
@@ -59,6 +57,32 @@ func showAd() {
 
 func main() {
 	flag.Parse()
+
+	// ------------------------------------------------------------------------
+	// ENVIRONMENT VARIABLE OVERRIDES (used by Docker)
+	// ------------------------------------------------------------------------
+	// These run AFTER flag parsing, so:
+	//   - if you pass a flag on the command line (e.g. evilginx -dashboard ...)
+	//     the flag wins only if no env var is set for that option,
+	//   - if the env var exists, it overrides the default.
+	// DASHBOARD_ADDR  -> listen address, e.g. "0.0.0.0:5000". Set to "" to disable.
+	// DASHBOARD_USER   -> dashboard username
+	// DASHBOARD_PASS   -> dashboard password (empty = dashboard has NO login)
+	// DASHBOARD_ENABLED -> set to "false"/"0"/"no"/"off" to turn dashboard off
+	if v, ok := os.LookupEnv("DASHBOARD_ADDR"); ok {
+		*dashboard_addr = v
+	}
+	if v, ok := os.LookupEnv("DASHBOARD_USER"); ok {
+		*dashboard_user = v
+	}
+	if v, ok := os.LookupEnv("DASHBOARD_PASS"); ok {
+		*dashboard_pass = v
+	}
+	if v, ok := os.LookupEnv("DASHBOARD_ENABLED"); ok {
+		if v == "false" || v == "0" || v == "no" || v == "off" {
+			*dashboard_addr = ""
+		}
+	}
 
 	if *version_flag == true {
 		log.Info("version: %s", core.VERSION)
