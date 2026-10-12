@@ -94,9 +94,17 @@ func (ds *DashboardServer) Stop() error {
 }
 
 // basicAuth is HTTP middleware that enforces Basic Authentication.
+//
+// FIX: Authentication is now enforced only when a password is configured.
+// Previously it required BOTH username and password to be empty to disable
+// auth — but the username defaults to "admin", so it was never empty. The
+// result was a login prompt that only accepted a BLANK password, which made
+// the dashboard appear completely broken.
 func (ds *DashboardServer) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if ds.config.Username == "" && ds.config.Password == "" {
+		// No password configured = open dashboard (matches the flag help:
+		// "Dashboard password (empty = no auth)").
+		if ds.config.Password == "" {
 			next(w, r)
 			return
 		}
