@@ -14,9 +14,19 @@ services:
       - TZ=${TZ:-UTC}
       - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
       - TG_CHAT_ID=${TG_CHAT_ID:-}
+      # ---- Web dashboard settings (fix) ----
+      # DASHBOARD_ADDR: where the dashboard listens. 0.0.0.0 = all interfaces.
+      #   Change the port here if 5000 is taken on your host, e.g. 0.0.0.0:5050
+      # DASHBOARD_USER / DASHBOARD_PASS: browser login credentials.
+      #   If DASHBOARD_PASS is left EMPTY the dashboard has NO login (open access).
+      # DASHBOARD_ENABLED: set to "false" to turn the dashboard off completely.
+      - DASHBOARD_ADDR=${DASHBOARD_ADDR:-0.0.0.0:5000}
+      - DASHBOARD_USER=${DASHBOARD_USER:-admin}
+      - DASHBOARD_PASS=${DASHBOARD_PASS:-}
+      - DASHBOARD_ENABLED=${DASHBOARD_ENABLED:-true}
 
     volumes:
       # phishlet .yml files (seeded from image on first run)
       - ./phishlets:/app/phishlets
-      # v4.0.0 config, sessions database, certs, geoip — THE MISSING PIECE
+      # config, sessions database, certs, geoip
       - ./data:/home/evilginx/.evilginx
