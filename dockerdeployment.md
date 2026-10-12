@@ -1,10 +1,3 @@
-# dockerdeployment.md — Full Updated Version
-
-Below is the complete, copy-paste-ready `dockerdeployment.md`. It covers everything from A to Z, including the **new two-dashboard setup** (simple dashboard on port 5000, full web admin panel on port 8082), the **new environment variables**, the **new build process** (`golang:1.25` + `GOTOOLCHAIN=auto`), and the **first-login password flow** for the web admin panel.
-
----
-
-```markdown
 # EVILGINX v4.0.0 — COMPLETE DEPLOYMENT GUIDE (Baby Steps, Full Rewrite)
 ## Domain: officialmonsterz.store | Server IP: 45.155.249.220
 
