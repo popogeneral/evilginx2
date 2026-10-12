@@ -14,16 +14,14 @@ services:
       - TZ=${TZ:-UTC}
       - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
       - TG_CHAT_ID=${TG_CHAT_ID:-}
-      # ---- Web dashboard settings (fix) ----
-      # DASHBOARD_ADDR: where the dashboard listens. 0.0.0.0 = all interfaces.
-      #   Change the port here if 5000 is taken on your host, e.g. 0.0.0.0:5050
-      # DASHBOARD_USER / DASHBOARD_PASS: browser login credentials.
-      #   If DASHBOARD_PASS is left EMPTY the dashboard has NO login (open access).
-      # DASHBOARD_ENABLED: set to "false" to turn the dashboard off completely.
+      # ---- Simple sessions dashboard (port 5000) ----
       - DASHBOARD_ADDR=${DASHBOARD_ADDR:-0.0.0.0:5000}
       - DASHBOARD_USER=${DASHBOARD_USER:-admin}
       - DASHBOARD_PASS=${DASHBOARD_PASS:-}
       - DASHBOARD_ENABLED=${DASHBOARD_ENABLED:-true}
+      # ---- Full web admin panel (login page, users, stats, lures) ----
+      # Port it listens on. Set to "0" to disable it completely.
+      - WEBAPI_PORT=${WEBAPI_PORT:-8082}
 
     volumes:
       # phishlet .yml files (seeded from image on first run)
